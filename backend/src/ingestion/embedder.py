@@ -48,7 +48,7 @@ class EmbeddingGenerator:
     - Use larger model if quality is more important than speed
     """
     
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2", lazy_load: bool = False):
         """
         Initialize embedding generator.
         
@@ -66,15 +66,29 @@ class EmbeddingGenerator:
                 "Install with: pip install sentence-transformers"
             )
         
-        logger.info(f"Loading embedding model: {model_name}")
-        
-        # Load model (downloads on first use, cached after)
-        self.model = SentenceTransformer(model_name)
         self.model_name = model_name
+        self.model = None
+        self.embedding_dim = None
+
+        if lazy_load:
+            logger.info(
+                f"Embedding model '{model_name}' set to lazy-load mode "
+                "(will load on first embed request)"
+            )
+        else:
+            self._ensure_model_loaded()
+
+    def _ensure_model_loaded(self):
+        """Load sentence-transformers model on demand."""
+        if self.model is not None:
+            return
+
+        logger.info(f"Loading embedding model: {self.model_name}")
+        # Load model (downloads on first use, cached after)
+        self.model = SentenceTransformer(self.model_name)
         self.embedding_dim = self.model.get_sentence_embedding_dimension()
-        
         logger.success(
-            f"Loaded {model_name}, embedding dimension: {self.embedding_dim}"
+            f"Loaded {self.model_name}, embedding dimension: {self.embedding_dim}"
         )
     
     def embed_texts(self, texts: List[str], batch_size: int = 32) -> np.ndarray:
@@ -99,7 +113,8 @@ class EmbeddingGenerator:
         """
         if not texts:
             return np.array([])
-        
+
+        self._ensure_model_loaded()
         logger.info(f"Embedding {len(texts)} texts in batches of {batch_size}")
         
         # Generate embeddings
@@ -131,6 +146,7 @@ class EmbeddingGenerator:
             
         Use case: Embedding query at search time
         """
+        self._ensure_model_loaded()
         embedding = self.model.encode(
             text,
             convert_to_numpy=True,
@@ -140,4 +156,5 @@ class EmbeddingGenerator:
     
     def get_embedding_dimension(self) -> int:
         """Get the dimensionality of the embeddings."""
+        self._ensure_model_loaded()
         return self.embedding_dim

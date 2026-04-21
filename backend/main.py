@@ -68,7 +68,12 @@ async def startup_event():
         if settings.vector_store_type == "pgvector":
             logger.info("Using pgvector mode (Supabase)")
             validate_supabase_ready()
-            pipeline = IngestionPipeline()
+            # Keep startup fast on cloud hosts (Render):
+            # avoid eager sentence-transformer loading before port binding.
+            pipeline = IngestionPipeline(
+                lazy_embedder=True,
+                create_vector_store=False,
+            )
             pg_store = PGVectorStore.from_settings()
             initialize_vector_store(pg_store, pipeline.embedder)
             logger.success("pgvector retrieval initialized")

@@ -45,7 +45,9 @@ class IngestionPipeline:
         embedding_model: str = "all-MiniLM-L6-v2",
         chunk_size: int = 500,
         chunk_overlap: int = 50,
-        vector_store: Optional[FAISSVectorStore] = None
+        vector_store: Optional[FAISSVectorStore] = None,
+        lazy_embedder: bool = False,
+        create_vector_store: bool = True,
     ):
         """
         Initialize the ingestion pipeline.
@@ -64,10 +66,16 @@ class IngestionPipeline:
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap
         )
-        self.embedder = EmbeddingGenerator(model_name=embedding_model)
-        
-        # Initialize or use provided vector store
-        if vector_store is None:
+        self.embedder = EmbeddingGenerator(
+            model_name=embedding_model,
+            lazy_load=lazy_embedder,
+        )
+
+        # Initialize or use provided vector store.
+        # In pgvector mode we can skip FAISS store creation entirely.
+        if not create_vector_store:
+            self.vector_store = vector_store
+        elif vector_store is None:
             embedding_dim = self.embedder.get_embedding_dimension()
             self.vector_store = FAISSVectorStore(embedding_dim=embedding_dim)
         else:
