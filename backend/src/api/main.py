@@ -4,11 +4,26 @@ FastAPI Application - Main entry point.
 This creates the FastAPI app with all routes and middleware.
 """
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from .routes import documents, query, stats
+
+
+def _get_allowed_origins() -> list[str]:
+    """
+    Read allowed origins from ALLOWED_ORIGINS env var (comma-separated).
+    Always includes localhost for local development.
+    """
+    default = ["http://localhost:3000", "http://localhost:3001"]
+    raw = os.environ.get("ALLOWED_ORIGINS", "")
+    if not raw.strip():
+        return default
+    extra = [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
+    return list(dict.fromkeys(extra + default))  # deduplicate, extra first
 
 
 def create_app() -> FastAPI:
@@ -29,10 +44,12 @@ def create_app() -> FastAPI:
         redoc_url="/api/redoc",
     )
     
-    # CORS middleware (allow frontend to call API)
+    # CORS middleware
+    origins = _get_allowed_origins()
+    logger.info(f"CORS allowed origins: {origins}")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000", "http://localhost:3001"],  # Next.js dev server
+        allow_origins=origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
