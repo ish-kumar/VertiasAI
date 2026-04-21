@@ -20,14 +20,6 @@ from typing import List
 import numpy as np
 from loguru import logger
 
-try:
-    from sentence_transformers import SentenceTransformer
-    SENTENCE_TRANSFORMERS_AVAILABLE = True
-except ImportError:
-    SENTENCE_TRANSFORMERS_AVAILABLE = False
-    logger.warning("sentence-transformers not installed")
-
-
 class EmbeddingGenerator:
     """
     Generates vector embeddings for text chunks.
@@ -60,12 +52,6 @@ class EmbeddingGenerator:
         - Keep model in memory for entire session
         - Share across all embedding requests
         """
-        if not SENTENCE_TRANSFORMERS_AVAILABLE:
-            raise ImportError(
-                "sentence-transformers not installed. "
-                "Install with: pip install sentence-transformers"
-            )
-        
         self.model_name = model_name
         self.model = None
         self.embedding_dim = None
@@ -82,6 +68,15 @@ class EmbeddingGenerator:
         """Load sentence-transformers model on demand."""
         if self.model is not None:
             return
+
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError as exc:
+            logger.warning("sentence-transformers not installed")
+            raise ImportError(
+                "sentence-transformers not installed. "
+                "Install with: pip install sentence-transformers"
+            ) from exc
 
         logger.info(f"Loading embedding model: {self.model_name}")
         # Load model (downloads on first use, cached after)
