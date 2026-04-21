@@ -12,6 +12,7 @@ Usage:
 """
 
 import sys
+import asyncio
 from pathlib import Path
 
 # Add src to path
@@ -43,6 +44,60 @@ app = create_app()
 # Global instances
 pipeline = None
 graph = None
+_runtime_init_lock = asyncio.Lock()
+_runtime_initialized = False
+
+
+async def ensure_runtime_initialized() -> None:
+    """
+    Initialize heavy runtime components lazily.
+
+    This avoids blocking server startup on cloud hosts where port binding
+    must happen quickly (e.g., Render).
+    """
+    global pipeline, graph, _runtime_initialized
+    if _runtime_initialized:
+        return
+
+    async with _runtime_init_lock:
+        if _runtime_initialized:
+            return
+
+        logger.info("Initializing runtime components (lazy)...")
+        settings = get_settings()
+
+        if settings.vector_store_type == "pgvector":
+            logger.info("Using pgvector mode (Supabase)")
+            validate_supabase_ready()
+            pipeline = IngestionPipeline(
+                lazy_embedder=True,
+                create_vector_store=False,
+            )
+            pg_store = PGVectorStore.from_settings()
+            initialize_vector_store(pg_store, pipeline.embedder)
+            logger.success("pgvector retrieval initialized")
+        else:
+            index_dir = Path("./vector_store")
+            if index_dir.exists():
+                logger.info(f"Loading existing index from {index_dir}")
+                pipeline = IngestionPipeline.load_index(index_dir)
+                logger.success(f"Loaded index with {pipeline.vector_store.index.ntotal} chunks")
+            else:
+                logger.info("No existing index found, creating new pipeline")
+                pipeline = IngestionPipeline(lazy_embedder=True)
+                logger.info("Empty pipeline created (upload documents to populate)")
+
+            initialize_vector_store(pipeline.vector_store, pipeline.embedder)
+            logger.success("FAISS retrieval initialized")
+
+        graph = get_compiled_graph()
+        logger.success("LangGraph compiled")
+
+        documents.set_pipeline(pipeline)
+        query.set_graph(graph)
+        stats.set_pipeline(pipeline)
+        _runtime_initialized = True
+        logger.success("✅ Runtime components initialized")
 
 
 @app.on_event("startup")
@@ -56,68 +111,11 @@ async def startup_event():
     3. Compile LangGraph
     4. Set global instances for routes
     """
-    global pipeline, graph
-    
     logger.info("=" * 80)
     logger.info("LEGAL RAG API STARTUP")
     logger.info("=" * 80)
-    
-    try:
-        settings = get_settings()
-
-        if settings.vector_store_type == "pgvector":
-            logger.info("Using pgvector mode (Supabase)")
-            validate_supabase_ready()
-            # Keep startup fast on cloud hosts (Render):
-            # avoid eager sentence-transformer loading before port binding.
-            pipeline = IngestionPipeline(
-                lazy_embedder=True,
-                create_vector_store=False,
-            )
-            pg_store = PGVectorStore.from_settings()
-            initialize_vector_store(pg_store, pipeline.embedder)
-            logger.success("pgvector retrieval initialized")
-        else:
-            # FAISS mode: load local index if available
-            index_dir = Path("./vector_store")
-            if index_dir.exists():
-                logger.info(f"Loading existing index from {index_dir}")
-                pipeline = IngestionPipeline.load_index(index_dir)
-                logger.success(f"Loaded index with {pipeline.vector_store.index.ntotal} chunks")
-            else:
-                logger.info("No existing index found, creating new pipeline")
-                pipeline = IngestionPipeline()
-                logger.info("Empty pipeline created (upload documents to populate)")
-
-            initialize_vector_store(pipeline.vector_store, pipeline.embedder)
-            logger.success("FAISS retrieval initialized")
-        
-        # Compile LangGraph
-        graph = get_compiled_graph()
-        logger.success("LangGraph compiled")
-        
-        # Set global instances for route handlers
-        documents.set_pipeline(pipeline)
-        query.set_graph(graph)
-        stats.set_pipeline(pipeline)
-        
-        logger.info("=" * 80)
-        logger.success("✅ LEGAL RAG API READY")
-        logger.info("=" * 80)
-        if settings.vector_store_type == "faiss":
-            logger.info(f"📚 Documents indexed: {len(set(c.document_id for c in pipeline.vector_store.chunks))}")
-            logger.info(f"📄 Total chunks: {pipeline.vector_store.index.ntotal}")
-        else:
-            logger.info("📚 Documents indexed: managed via Supabase")
-            logger.info("📄 Total chunks: managed via pgvector")
-        logger.info(f"🔗 API Docs: http://localhost:8000/api/docs")
-        logger.info(f"🏥 Health Check: http://localhost:8000/api/health")
-        logger.info("=" * 80)
-        
-    except Exception as e:
-        logger.error(f"Error during startup: {e}")
-        logger.exception(e)
-        raise
+    logger.success("API booted. Runtime components will initialize on first request.")
+    logger.info("=" * 80)
 
 
 @app.on_event("shutdown")

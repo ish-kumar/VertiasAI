@@ -35,7 +35,10 @@ async def get_stats():
         - Memory usage
     """
     if _pipeline is None:
-        raise HTTPException(status_code=500, detail="Pipeline not initialized")
+        from main import ensure_runtime_initialized
+        await ensure_runtime_initialized()
+        if _pipeline is None:
+            raise HTTPException(status_code=500, detail="Pipeline not initialized")
     
     try:
         settings = get_settings()

@@ -59,7 +59,10 @@ async def upload_document(
         Document metadata and chunk count
     """
     if _pipeline is None:
-        raise HTTPException(status_code=500, detail="Ingestion pipeline not initialized")
+        from main import ensure_runtime_initialized
+        await ensure_runtime_initialized()
+        if _pipeline is None:
+            raise HTTPException(status_code=500, detail="Ingestion pipeline not initialized")
     
     try:
         settings = get_settings()
@@ -164,7 +167,10 @@ async def list_documents():
         List of document metadata
     """
     if _pipeline is None:
-        raise HTTPException(status_code=500, detail="Pipeline not initialized")
+        from main import ensure_runtime_initialized
+        await ensure_runtime_initialized()
+        if _pipeline is None:
+            raise HTTPException(status_code=500, detail="Pipeline not initialized")
     
     try:
         settings = get_settings()
@@ -217,7 +223,10 @@ async def delete_document(document_id: str):
     Note: This operation can take a few seconds for large indices.
     """
     if _pipeline is None:
-        raise HTTPException(status_code=500, detail="Pipeline not initialized")
+        from main import ensure_runtime_initialized
+        await ensure_runtime_initialized()
+        if _pipeline is None:
+            raise HTTPException(status_code=500, detail="Pipeline not initialized")
     
     try:
         settings = get_settings()

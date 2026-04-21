@@ -49,7 +49,10 @@ async def submit_query(request: QueryRequest):
         Complete RAG response with answer/refusal, confidence, risk, citations, etc.
     """
     if _graph is None:
-        raise HTTPException(status_code=500, detail="RAG pipeline not initialized")
+        from main import ensure_runtime_initialized
+        await ensure_runtime_initialized()
+        if _graph is None:
+            raise HTTPException(status_code=500, detail="RAG pipeline not initialized")
     
     try:
         logger.info(f"Received query: {request.query[:100]}...")
