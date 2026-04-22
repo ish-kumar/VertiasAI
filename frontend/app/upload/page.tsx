@@ -29,6 +29,14 @@ export default function UploadPage() {
   const [jurisdiction, setJurisdiction] = useState('');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warming, setWarming] = useState(true);
+
+  // Warm up backend on page load so first upload is faster
+  useEffect(() => {
+    api.getDocuments()
+      .catch(() => {}) // silently ignore errors — just waking the server
+      .finally(() => setWarming(false));
+  }, []);
 
   const handleFilesChange = (newFiles: File[]) => {
     // Validate each file
@@ -246,13 +254,18 @@ export default function UploadPage() {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={files.filter(f => f.status === 'completed').length === 0 || uploading}
+            disabled={files.filter(f => f.status === 'completed').length === 0 || uploading || warming}
             className="w-full h-12 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
           >
-            {uploading ? (
+            {warming ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Processing Document...
+                Connecting to backend...
+              </>
+            ) : uploading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Processing Document... (may take up to 60s)
               </>
             ) : (
               <>
@@ -273,7 +286,7 @@ export default function UploadPage() {
             <ProcessStep number={1} text="Document parsing (PDF/DOCX/TXT)" isLast={false} />
             <ProcessStep number={2} text="Clause-aware semantic chunking" isLast={false} />
             <ProcessStep number={3} text="Embedding generation (sentence-transformers)" isLast={false} />
-            <ProcessStep number={4} text="Vector indexing (FAISS)" isLast={false} />
+            <ProcessStep number={4} text="Vector indexing (pgvector / Supabase)" isLast={false} />
             <ProcessStep number={5} text="Ready for semantic search!" isLast />
           </div>
         </div>
