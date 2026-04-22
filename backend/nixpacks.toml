@@ -1,11 +1,10 @@
 [phases.setup]
-nixPkgs = ["python311", "gcc", "libstdcxx5"]
+nixPkgs = ["python311", "gcc"]
 
 [phases.install]
 cmds = [
   "pip install --upgrade pip",
-  "pip install -r requirements.txt",
-  "python -c \"from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')\""
+  "pip install -r requirements.txt"
 ]
 
 [start]
