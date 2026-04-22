@@ -11,4 +11,5 @@ jobs:
     steps:
       - name: Ping backend health endpoint
         run: |
-          curl -s --max-time 30 https://veritasai-1rga.onrender.com/api/health || true
+          curl -s --max-time 90 https://veritasai-1rga.onrender.com/api/health || true
+          echo "Ping complete"
